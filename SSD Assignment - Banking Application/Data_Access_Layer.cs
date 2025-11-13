@@ -2,9 +2,12 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
+using SSD_Assignment___Banking_Application;
+
 
 namespace Banking_Application
 {
@@ -15,6 +18,30 @@ namespace Banking_Application
         public static String databaseName = "Banking Database.db";
         private static Data_Access_Layer instance = new Data_Access_Layer();
 
+        private static readonly byte[] encryptionKey;
+        private static readonly byte[] encryptionIV;
+
+        static Data_Access_Layer()
+        {
+            string keyFile = "encryption.key";
+            encryptionKey = new byte[32];
+            encryptionIV = new byte[16];
+
+            if (File.Exists(keyFile))
+            {
+                encryptionKey = File.ReadAllBytes(keyFile);
+                Console.WriteLine("Encryption Key Loaded: " + Convert.ToBase64String(encryptionKey));
+                return;
+            }
+            else
+            {
+                RandomNumberGenerator.Fill(encryptionKey);
+                File.WriteAllBytes(keyFile, encryptionKey);
+                Console.WriteLine("Encryption Key Generated: " + Convert.ToBase64String(encryptionKey));
+            }
+
+            RandomNumberGenerator.Fill(encryptionIV);
+        }
         private Data_Access_Layer()//Singleton Design Pattern (For Concurrency Control) - Use getInstance() Method Instead.
         {
             accounts = new List<Bank_Account>();
@@ -83,16 +110,31 @@ namespace Banking_Application
                     {
 
                         int accountType = dr.GetInt16(7);
+                        string encryptedAccNo = dr.GetString(0);
+                        string encryptedName = dr.GetString(1);
+                        string encryptedAddr1 = dr.GetString(2);
+                        string encryptedAddr2 = dr.GetString(3);
+                        string encryptedAddr3 = dr.GetString(4);
+                        string encryptedTown = dr.GetString(5);
 
-                        if(accountType == Account_Type.Current_Account)
+                        
+                        string decryptedAccNo = EncryptionService.DecryptString(encryptedAccNo, encryptionKey);
+                        string decryptedName = EncryptionService.DecryptString(encryptedName, encryptionKey);
+                        string decryptedAddr1 = EncryptionService.DecryptString(encryptedAddr1, encryptionKey);
+                        string decryptedAddr2 = EncryptionService.DecryptString(encryptedAddr2, encryptionKey);
+                        string decryptedAddr3 = EncryptionService.DecryptString(encryptedAddr3, encryptionKey);
+                        string decryptedTown = EncryptionService.DecryptString(encryptedTown, encryptionKey);
+
+
+                        if (accountType == Account_Type.Current_Account)
                         {
                             Current_Account ca = new Current_Account();
-                            ca.accountNo = dr.GetString(0);
-                            ca.name = dr.GetString(1);
-                            ca.address_line_1 = dr.GetString(2);
-                            ca.address_line_2 = dr.GetString(3);
-                            ca.address_line_3 = dr.GetString(4);
-                            ca.town = dr.GetString(5);
+                            ca.accountNo = decryptedAccNo;
+                            ca.name = decryptedName;
+                            ca.address_line_1 = decryptedAddr1;
+                            ca.address_line_2 = decryptedAddr2;
+                            ca.address_line_3 = decryptedAddr3;
+                            ca.town = decryptedTown;
                             ca.balance = dr.GetDouble(6);
                             ca.overdraftAmount = dr.GetDouble(8);
                             accounts.Add(ca);
@@ -100,12 +142,12 @@ namespace Banking_Application
                         else
                         {
                             Savings_Account sa = new Savings_Account();
-                            sa.accountNo = dr.GetString(0);
-                            sa.name = dr.GetString(1);
-                            sa.address_line_1 = dr.GetString(2);
-                            sa.address_line_2 = dr.GetString(3);
-                            sa.address_line_3 = dr.GetString(4);
-                            sa.town = dr.GetString(5);
+                            sa.accountNo = decryptedAccNo;
+                            sa.name = decryptedName;
+                            sa.address_line_1 = decryptedAddr1;
+                            sa.address_line_2 = decryptedAddr2;
+                            sa.address_line_3 = decryptedAddr3;
+                            sa.town = decryptedTown;
                             sa.balance = dr.GetDouble(6);
                             sa.interestRate = dr.GetDouble(9);
                             accounts.Add(sa);
@@ -122,6 +164,15 @@ namespace Banking_Application
         public String addBankAccount(Bank_Account ba) 
         {
 
+            byte[] hmac;
+
+            string encryptedAccountNo = EncryptionService.EncryptString(ba.accountNo, encryptionKey);
+            string encrptedName = EncryptionService.EncryptString(ba.name, encryptionKey);
+            string encryptedAddr1 = EncryptionService.EncryptString(ba.address_line_1, encryptionKey);
+            string encryptedAddr2 = EncryptionService.EncryptString(ba.address_line_2, encryptionKey);
+            string encryptedAddr3 = EncryptionService.EncryptString(ba.address_line_3, encryptionKey);
+            string encryptedTown = EncryptionService.EncryptString(ba.town, encryptionKey);
+
             if (ba.GetType() == typeof(Current_Account))
                 ba = (Current_Account)ba;
             else
@@ -136,12 +187,12 @@ namespace Banking_Application
                 command.CommandText =
                 @"
                     INSERT INTO Bank_Accounts VALUES(" +
-                    "'" + ba.accountNo + "', " +
-                    "'" + ba.name + "', " +
-                    "'" + ba.address_line_1 + "', " +
-                    "'" + ba.address_line_2 + "', " +
-                    "'" + ba.address_line_3 + "', " +
-                    "'" + ba.town + "', " +
+                    "'" + encryptedAccountNo + "', " +
+                    "'" + encrptedName + "', " +
+                    "'" + encryptedAddr1 + "', " +
+                    "'" + encryptedAddr2 + "', " +
+                    "'" + encryptedAddr3 + "', " +
+                    "'" + encryptedTown + "', " +
                     ba.balance + ", " +
                     (ba.GetType() == typeof(Current_Account) ? 1 : 2) + ", ";
 
@@ -207,7 +258,11 @@ namespace Banking_Application
                 {
                     connection.Open();
                     var command = connection.CreateCommand();
-                    command.CommandText = "DELETE FROM Bank_Accounts WHERE accountNo = '" + toRemove.accountNo + "'";
+
+                    byte[] hmac;
+                    string encryptedAccNo = EncryptionService.EncryptString(toRemove.accountNo, encryptionKey);
+
+                    command.CommandText = "DELETE FROM Bank_Accounts WHERE accountNo = '" + encryptedAccNo + "'";
                     command.ExecuteNonQuery();
 
                 }
@@ -243,7 +298,11 @@ namespace Banking_Application
                 {
                     connection.Open();
                     var command = connection.CreateCommand();
-                    command.CommandText = "UPDATE Bank_Accounts SET balance = " + toLodgeTo.balance + " WHERE accountNo = '" + toLodgeTo.accountNo + "'";
+
+                    byte[] hmac;
+                    string encryptedAccNo = EncryptionService.EncryptString(toLodgeTo.accountNo, encryptionKey);
+
+                    command.CommandText = "UPDATE Bank_Accounts SET balance = " + toLodgeTo.balance + " WHERE accountNo = '" + encryptedAccNo + "'";
                     command.ExecuteNonQuery();
 
                 }
@@ -280,7 +339,11 @@ namespace Banking_Application
                 {
                     connection.Open();
                     var command = connection.CreateCommand();
-                    command.CommandText = "UPDATE Bank_Accounts SET balance = " + toWithdrawFrom.balance + " WHERE accountNo = '" + toWithdrawFrom.accountNo + "'";
+
+                    byte[] hmac;
+                    string encryptedAccNo = EncryptionService.EncryptString(toWithdrawFrom.accountNo, encryptionKey);
+
+                    command.CommandText = "UPDATE Bank_Accounts SET balance = " + toWithdrawFrom.balance + " WHERE accountNo = '" + encryptedAccNo + "'";
                     command.ExecuteNonQuery();
 
                 }

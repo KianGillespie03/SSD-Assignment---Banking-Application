@@ -73,7 +73,7 @@ namespace Banking_Application
                         {
 
                             if (loopCount > 0)
-                                Console.WriteLine("INVALID ÀDDRESS LINE 1 ENTERED - PLEASE TRY AGAIN");
+                                Console.WriteLine("INVALID ADDRESS LINE 1 ENTERED - PLEASE TRY AGAIN");
 
                             Console.WriteLine("Enter Address Line 1: ");
                             addressLine1 = Console.ReadLine();

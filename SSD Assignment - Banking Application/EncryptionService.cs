@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 
 namespace SSD_Assignment___Banking_Application
 {
-    public class EncryptionService
+    public static class EncryptionService
     {
-        public static string EncryptString(string plainText, byte[] key, out byte[] iv, out byte[] hmac)
+        public static string EncryptString(string plainText, byte[] key)
         {
             byte[] plainBytes = Encoding.ASCII.GetBytes(plainText);
 
@@ -19,11 +19,7 @@ namespace SSD_Assignment___Banking_Application
                 aes.Key = key;
                 aes.Mode = CipherMode.CBC;
                 aes.Padding = PaddingMode.PKCS7;
-
-                // generate random IV
-                iv = new byte[16];
-                RandomNumberGenerator.Fill(iv);
-                aes.IV = iv;
+                aes.GenerateIV();
 
                 byte[] cipherBytes;
 
@@ -35,31 +31,43 @@ namespace SSD_Assignment___Banking_Application
                     cipherBytes = ms.ToArray();
                 }
 
-                
+                byte[] ivAndCipher = new byte[aes.IV.Length + cipherBytes.Length];
+                Buffer.BlockCopy(aes.IV, 0, ivAndCipher, 0, aes.IV.Length);
+                Buffer.BlockCopy(cipherBytes, 0, ivAndCipher, aes.IV.Length, cipherBytes.Length);
+
+                byte[] hmac;
                 using (var hmacSha = new HMACSHA256(key))
                 {
-                    byte[] ivAndCipher = new byte[iv.Length + cipherBytes.Length];
-                    Buffer.BlockCopy(iv, 0, ivAndCipher, 0, iv.Length);
-                    Buffer.BlockCopy(cipherBytes, 0, ivAndCipher, iv.Length, cipherBytes.Length);
+           
                     hmac = hmacSha.ComputeHash(ivAndCipher);
                 }
+                byte[] fullData = new byte[aes.IV.Length + cipherBytes.Length + hmac.Length];
+                Buffer.BlockCopy(aes.IV, 0, fullData, 0, aes.IV.Length);
+                Buffer.BlockCopy(cipherBytes, 0, fullData, aes.IV.Length, cipherBytes.Length);
+                Buffer.BlockCopy(hmac, 0, fullData, aes.IV.Length + cipherBytes.Length, hmac.Length);
 
-                // return base64 of ciphertext only; iv and hmac returned separately
-                return Convert.ToBase64String(cipherBytes);
+                return Convert.ToBase64String(fullData);
             }
         }
 
-        public static string DecryptString(string base64Cipher, byte[] key, byte[] iv, byte[] hmac)
+        public static string DecryptString(string base64Cipher, byte[] key)
         {
-            byte[] cipherBytes = Convert.FromBase64String(base64Cipher);
+            byte[] FullcipherBytes = Convert.FromBase64String(base64Cipher);
 
-            // verify HMAC
+            byte[] iv = new byte[16];
+            byte[] hmac = new byte[32];
+            byte[] cipherBytes = new byte[FullcipherBytes.Length - iv.Length - hmac.Length];
+            Buffer.BlockCopy(FullcipherBytes, 0, iv, 0, iv.Length);
+            Buffer.BlockCopy(FullcipherBytes, iv.Length, cipherBytes, 0, cipherBytes.Length);
+            Buffer.BlockCopy(FullcipherBytes, iv.Length + cipherBytes.Length, hmac, 0, hmac.Length);
+
+            // Validate HMAC
+            byte[] ivAndCipher = new byte[iv.Length + cipherBytes.Length];
+            Buffer.BlockCopy(iv, 0, ivAndCipher, 0, iv.Length);
+            Buffer.BlockCopy(cipherBytes, 0, ivAndCipher, iv.Length, cipherBytes.Length);
+
             using (var hmacSha = new HMACSHA256(key))
             {
-                byte[] ivAndCipher = new byte[iv.Length + cipherBytes.Length];
-                Buffer.BlockCopy(iv, 0, ivAndCipher, 0, iv.Length);
-                Buffer.BlockCopy(cipherBytes, 0, ivAndCipher, iv.Length, cipherBytes.Length);
-
                 byte[] expectedHmac = hmacSha.ComputeHash(ivAndCipher);
                 if (!CryptographicOperations.FixedTimeEquals(expectedHmac, hmac))
                     throw new CryptographicException("HMAC validation failed.");
