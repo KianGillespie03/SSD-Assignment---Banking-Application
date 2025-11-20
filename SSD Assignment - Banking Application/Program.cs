@@ -1,6 +1,9 @@
-﻿using System;
+﻿using SSD_Assignment___Banking_Application;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using static System.Net.Mime.MediaTypeNames;
+using System.Runtime.Intrinsics.X86;
 
 namespace Banking_Application
 {
@@ -8,11 +11,10 @@ namespace Banking_Application
     {
         public static void Main(string[] args)
         {
-            
             Data_Access_Layer dal = Data_Access_Layer.getInstance();
             dal.loadBankAccounts();
             bool running = true;
-
+            Logging.SetupEventSource();
             do
             {
 
@@ -157,6 +159,7 @@ namespace Banking_Application
                             } while (overdraftAmount < 0);
 
                             ba = new Current_Account(name, addressLine1, addressLine2, addressLine3, town, balance, overdraftAmount);
+                            
                         }
 
                         else
@@ -192,6 +195,7 @@ namespace Banking_Application
                         String accNo = dal.addBankAccount(ba);
 
                         Console.WriteLine("New Account Number Is: " + accNo);
+                        Logging.LogTransaction(bankTellerName: Environment.UserName, accountNumber: accNo, accountHolderName: name, transactionType: "Account Creation", transactionDateTime: DateTime.Now, reason: "", appMetadata: "SSD Assignment Banking Application v1.0.0", amount: balance);
 
                         break;
                     case "2":
@@ -220,6 +224,7 @@ namespace Banking_Application
                                 {
                                     case "Y":
                                     case "y": dal.closeBankAccount(accNo);
+                                        Logging.LogTransaction(bankTellerName: Environment.UserName,  accountNumber: ba.accountNo, accountHolderName: ba.name, transactionType: "Account Closure", transactionDateTime: DateTime.Now, reason: "", appMetadata: "SSD Assignment Banking Application v1.0.0", amount: 0);
                                         break;
                                     case "N":
                                     case "n":
@@ -245,6 +250,8 @@ namespace Banking_Application
                         else
                         {
                             Console.WriteLine(ba.ToString());
+                            Logging.LogTransaction(bankTellerName: Environment.UserName, accountNumber: accNo, accountHolderName: ba.name, transactionType: "Viewing Account Details", transactionDateTime: DateTime.Now, reason: "", appMetadata: "SSD Assignment Banking Application v1.0.0", amount: ba.balance);
+
                         }
 
                         break;
@@ -285,6 +292,8 @@ namespace Banking_Application
                             } while (amountToLodge < 0);
 
                             dal.lodge(accNo, amountToLodge);
+                            Logging.LogTransaction(bankTellerName: Environment.UserName, accountNumber: accNo, accountHolderName: ba.name, transactionType: "Lodging Money to Account", transactionDateTime: DateTime.Now, reason: "", appMetadata: "SSD Assignment Banking Application v1.0.0", amount: ba.balance);
+
                         }
                         break;
                     case "5": //Withdraw
@@ -324,8 +333,9 @@ namespace Banking_Application
                             } while (amountToWithdraw < 0);
 
                             bool withdrawalOK = dal.withdraw(accNo, amountToWithdraw);
+                            Logging.LogTransaction(bankTellerName: Environment.UserName, accountNumber: accNo, accountHolderName: ba.name, transactionType: "Withdraw Money from Account", transactionDateTime: DateTime.Now, reason: "", appMetadata: "SSD Assignment Banking Application v1.0.0", amount: ba.balance);
 
-                            if(withdrawalOK == false)
+                            if (withdrawalOK == false)
                             {
 
                                 Console.WriteLine("Insufficient Funds Available.");
