@@ -59,6 +59,32 @@ namespace SSD_Assignment___Banking_Application
                 Console.WriteLine($"Failed to log transaction: {ex.Message}");
             }
         }
+        public static void LogLoginAttempt(string username, bool success, DateTime time, string appMetadata, string ExtraInfo = "")
+        {
+            string status = success ? "SUCCESS" : "FAILED";
 
+            string logMessage = $@"
+            WHO:
+                User: {username}
+
+            WHAT: Login Status: {status}
+
+            WHERE: Device SID: {GetWindowsSID()}
+
+            WHEN: Date/Time: {time:yyyy-MM-dd HH:mm:ss}
+
+            HOW: Application Metadata: {appMetadata}
+                 Extra Info: {ExtraInfo}";
+
+
+            try
+            {
+                EventLog.WriteEntry(SourceName, logMessage, EventLogEntryType.Information);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to log login attempt: {ex.Message}");
+            }
+        }
     }
 }

@@ -15,6 +15,37 @@ namespace Banking_Application
             dal.loadBankAccounts();
             bool running = true;
             Logging.SetupEventSource();
+            bool authenticated = false;
+            string loggedInUser = "";
+
+            do
+            {
+                Console.WriteLine("==== BANKING SYSTEM LOGIN ====");
+                Console.Write("Username: ");
+                string user = Console.ReadLine();
+
+                Console.Write("Password: ");
+                string pass = ReadPassword();
+
+                if (!AuthenticationService.AuthenticateUser(user, pass))
+                {
+                    Console.WriteLine("INVALID LOGIN. TRY AGAIN.");
+                    continue;
+                }
+
+                if (!AuthenticationService.IsUserInTellerGroup(user))
+                {
+                    Console.WriteLine("ACCESS DENIED. YOU ARE NOT IN THE BANK TELLER GROUP.");
+                    Logging.LogLoginAttempt(user, false, DateTime.Now, "Not in Bank Teller AD Group");
+                    continue;
+                }
+
+                authenticated = true;
+                loggedInUser = user;
+                Console.WriteLine("Login successful!");
+                Logging.LogLoginAttempt(user, true, DateTime.Now, "User logged in successfully.");
+
+            } while (!authenticated);
             do
             {
 
@@ -211,7 +242,24 @@ namespace Banking_Application
                         else
                         {
                             Console.WriteLine(ba.ToString());
+                            Console.WriteLine("This action requires ADMIN approval.");
 
+                            Console.Write("Admin Username: ");
+                            string adminUser = Console.ReadLine();
+
+                            Console.Write("Admin Password: ");
+                            string adminPass = ReadPassword();
+
+                            bool adminAuth = AuthenticationService.AuthenticateUser(adminUser, adminPass);
+
+                            if (!adminAuth || !AuthenticationService.IsUserAdmin(adminUser))
+                            {
+                                Console.WriteLine("ADMIN APPROVAL FAILED. ACCOUNT CANNOT BE DELETED.");
+                                Logging.LogTransaction(Environment.UserName, accNo, ba.name,
+                                    "Account Deletion - FAILED ADMIN AUTH", DateTime.Now,
+                                    "Admin authentication failure", "SSD Assignment Banking Application", 0);
+                                break;
+                            }
                             String ans = "";
 
                             do
@@ -354,6 +402,31 @@ namespace Banking_Application
             } while (running != false);
 
         }
+        public static string ReadPassword()
+        {
+            string pass = "";
+            ConsoleKey key;
 
+            do
+            {
+                var keyInfo = Console.ReadKey(intercept: true);
+                key = keyInfo.Key;
+
+                if (key == ConsoleKey.Backspace && pass.Length > 0)
+                {
+                    pass = pass[..^1];
+                    Console.Write("\b \b");
+                }
+                else if (!char.IsControl(keyInfo.KeyChar))
+                {
+                    pass += keyInfo.KeyChar;
+                    Console.Write("*");
+                }
+
+            } while (key != ConsoleKey.Enter);
+
+            Console.WriteLine();
+            return pass;
+        }
     }
 }
