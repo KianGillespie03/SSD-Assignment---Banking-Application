@@ -17,6 +17,8 @@ namespace Banking_Application
             Logging.SetupEventSource();
             bool authenticated = false;
             string loggedInUser = "";
+            int attempts = 0;
+            int maxAttempts = 3;
 
             do
             {
@@ -29,14 +31,30 @@ namespace Banking_Application
 
                 if (!AuthenticationService.AuthenticateUser(user, pass))
                 {
-                    Console.WriteLine("INVALID LOGIN. TRY AGAIN.");
+                    attempts++;
+                    Console.WriteLine($"INVALID LOGIN. TRY AGAIN. ({attempts}/{maxAttempts})");
+                    
+                    if (attempts >= maxAttempts)
+                    {
+                        Console.WriteLine("MAXIMUM LOGIN ATTEMPTS EXCEEDED. EXITING APPLICATION.");
+                        return;
+                    }
+
                     continue;
                 }
 
                 if (!AuthenticationService.IsUserInTellerGroup(user))
                 {
-                    Console.WriteLine("ACCESS DENIED. YOU ARE NOT IN THE BANK TELLER GROUP.");
+                    attempts++;
+                    Console.WriteLine($"ACCESS DENIED. YOU ARE NOT IN THE BANK TELLER GROUP. ({attempts}/{maxAttempts})");
                     Logging.LogLoginAttempt(user, false, DateTime.Now, "Not in Bank Teller AD Group");
+
+                    if (attempts >= maxAttempts)
+                    {
+                        Console.WriteLine("MAXIMUM LOGIN ATTEMPTS EXCEEDED. EXITING APPLICATION.");
+                        return;
+                    }
+
                     continue;
                 }
 
