@@ -164,10 +164,8 @@ namespace Banking_Application
         public String addBankAccount(Bank_Account ba) 
         {
 
-            byte[] hmac;
-
             string encryptedAccountNo = EncryptionService.EncryptString(ba.accountNo, encryptionKey);
-            string encrptedName = EncryptionService.EncryptString(ba.name, encryptionKey);
+            string encryptedName = EncryptionService.EncryptString(ba.name, encryptionKey);
             string encryptedAddr1 = EncryptionService.EncryptString(ba.address_line_1, encryptionKey);
             string encryptedAddr2 = EncryptionService.EncryptString(ba.address_line_2, encryptionKey);
             string encryptedAddr3 = EncryptionService.EncryptString(ba.address_line_3, encryptionKey);
@@ -184,28 +182,32 @@ namespace Banking_Application
             {
                 connection.Open();
                 var command = connection.CreateCommand();
-                command.CommandText =
-                @"
-                    INSERT INTO Bank_Accounts VALUES(" +
-                    "'" + encryptedAccountNo + "', " +
-                    "'" + encrptedName + "', " +
-                    "'" + encryptedAddr1 + "', " +
-                    "'" + encryptedAddr2 + "', " +
-                    "'" + encryptedAddr3 + "', " +
-                    "'" + encryptedTown + "', " +
-                    ba.balance + ", " +
-                    (ba.GetType() == typeof(Current_Account) ? 1 : 2) + ", ";
+                command.CommandText = @"
+                    INSERT INTO Bank_Accounts 
+                    (accountNo, name, address_line_1, address_line_2, address_line_3, town, balance, accountType, overdraftAmount, interestRate) 
+                    VALUES 
+                    (@accountNo, @name, @addr1, @addr2, @addr3, @town, @balance, @accountType, @overdraft, @interest)";
+
+                command.Parameters.AddWithValue("@accountNo", encryptedAccountNo);
+                command.Parameters.AddWithValue("@name", encryptedName);
+                command.Parameters.AddWithValue("@addr1", encryptedAddr1);
+                command.Parameters.AddWithValue("@addr2", encryptedAddr2);
+                command.Parameters.AddWithValue("@addr3", encryptedAddr3);
+                command.Parameters.AddWithValue("@town", encryptedTown);
+                command.Parameters.AddWithValue("@balance", ba.balance);
+                command.Parameters.AddWithValue("@accountType", ba.GetType() == typeof(Current_Account) ? 1 : 2);
 
                 if (ba.GetType() == typeof(Current_Account))
                 {
                     Current_Account ca = (Current_Account)ba;
-                    command.CommandText += ca.overdraftAmount + ", NULL)";
+                    command.Parameters.AddWithValue("@overdraft", ca.overdraftAmount);
+                    command.Parameters.AddWithValue("@interest", DBNull.Value);
                 }
-
                 else
                 {
                     Savings_Account sa = (Savings_Account)ba;
-                    command.CommandText += "NULL," + sa.interestRate + ")";
+                    command.Parameters.AddWithValue("@overdraft", DBNull.Value);
+                    command.Parameters.AddWithValue("@interest", sa.interestRate);
                 }
 
                 command.ExecuteNonQuery();
@@ -259,10 +261,10 @@ namespace Banking_Application
                     connection.Open();
                     var command = connection.CreateCommand();
 
-                    byte[] hmac;
                     string encryptedAccNo = EncryptionService.EncryptString(toRemove.accountNo, encryptionKey);
 
-                    command.CommandText = "DELETE FROM Bank_Accounts WHERE accountNo = '" + encryptedAccNo + "'";
+                    command.CommandText = "DELETE FROM Bank_Accounts WHERE accountNo = @accountNo";
+                    command.Parameters.AddWithValue("@accountNo", encryptedAccNo);
                     command.ExecuteNonQuery();
 
                 }
@@ -299,10 +301,11 @@ namespace Banking_Application
                     connection.Open();
                     var command = connection.CreateCommand();
 
-                    byte[] hmac;
                     string encryptedAccNo = EncryptionService.EncryptString(toLodgeTo.accountNo, encryptionKey);
 
-                    command.CommandText = "UPDATE Bank_Accounts SET balance = " + toLodgeTo.balance + " WHERE accountNo = '" + encryptedAccNo + "'";
+                    command.CommandText = "UPDATE Bank_Accounts SET balance = @balance WHERE accountNo = @accountNo";
+                    command.Parameters.AddWithValue("@balance", toLodgeTo.balance);
+                    command.Parameters.AddWithValue("@accountNo", encryptedAccNo);
                     command.ExecuteNonQuery();
 
                 }
@@ -340,10 +343,11 @@ namespace Banking_Application
                     connection.Open();
                     var command = connection.CreateCommand();
 
-                    byte[] hmac;
                     string encryptedAccNo = EncryptionService.EncryptString(toWithdrawFrom.accountNo, encryptionKey);
 
-                    command.CommandText = "UPDATE Bank_Accounts SET balance = " + toWithdrawFrom.balance + " WHERE accountNo = '" + encryptedAccNo + "'";
+                    command.CommandText = "UPDATE Bank_Accounts SET balance = @balance WHERE accountNo = @accountNo";
+                    command.Parameters.AddWithValue("@balance", toWithdrawFrom.balance);
+                    command.Parameters.AddWithValue("@accountNo", encryptedAccNo);
                     command.ExecuteNonQuery();
 
                 }
